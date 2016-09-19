@@ -2,19 +2,20 @@
 
 #include <xinu.h>
 #include <stdbool.h>
-#define QUEUESIZE 15
+#define QUEUESIZE 100
 pid32 producer_id;
 pid32 consumer_id;
 pid32 timer_id;
 
 int32 consumed_count = 0;
-const int32 CONSUMED_MAX = 100;
+const int32 CONSUMED_MAX = QUEUESIZE;
 
-/* Producer Consumer using Semaphore */
+
 /* Define your circular buffer structure and semaphore variables here */
 int produced, consumed, mutex;
 int queue[QUEUESIZE];
 int head,tail;
+int n = 0;
 
 void mutex_acquire(sid32 mutex)
 {
@@ -29,17 +30,19 @@ void mutex_release(sid32 mutex)
 
 /* Place the code for the buffer producer here */
 process producer(sid32 consumed, sid32 produced,sid32 mutex)
-{	
-    int item = 0;
-    while(true){
-        wait(consumed);
+{
+	
+    int i = 0;
+    while(1){
+        mutex_acquire(consumed);
         mutex_acquire(mutex);
-        item++;
-        queue[tail++] = item;     
-        kprintf("added %d to queue\n", item);
-        tail = tail % QUEUESIZE;
+        i++;
+        queue[head++] = i;     
+        kprintf("added %d to queue\n", i);
+        if(head >= CONSUMED_MAX)
+            head = 0;
         mutex_release(mutex);
-        signal(produced);
+        mutex_release(produced);
     }
 }
 
@@ -52,17 +55,18 @@ process consumer(sid32 consumed, sid32 produced,sid32 mutex)
 	 * this will allow the timing function to record performance */
 	/* */
 
-    int item;
-    while(true)
+    int n;
+    while(1)
     {
-        wait(produced);      
+        mutex_acquire(produced);      
         mutex_acquire(mutex);
-        item = queue[head++];
-        consumed_count += 1;
-        kprintf("%d is consumed\n", item);
-        head = head % QUEUESIZE;
+        n = queue[tail++];
+        kprintf("%d is consumed\n", n);
+        if(tail >= CONSUMED_MAX)
+	        tail = 0;
+	      consumed_count += 1;
         mutex_release(mutex);        
-        signal(consumed);
+        mutex_release(consumed);
     }
 }
 
@@ -101,8 +105,9 @@ process	main(void)
 	recvclr();
 
 	/* Create the shared circular buffer and semaphores here */
-	/* */      
-	  consumed = semcreate(QUEUESIZE);
+	/* */
+         
+	  consumed = semcreate(1);
     produced = semcreate(0);
     mutex = semcreate(1);
     head = 0;

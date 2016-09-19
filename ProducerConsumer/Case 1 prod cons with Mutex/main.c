@@ -10,7 +10,8 @@ pid32 timer_id;
 int32 consumed_count = 0;
 const int32 CONSUMED_MAX = 100;
 
-/* Producer Consumer using Semaphore */
+/* Producer Consumer using Mutex */
+
 /* Define your circular buffer structure and semaphore variables here */
 int produced, consumed, mutex;
 int queue[QUEUESIZE];
@@ -29,17 +30,19 @@ void mutex_release(sid32 mutex)
 
 /* Place the code for the buffer producer here */
 process producer(sid32 consumed, sid32 produced,sid32 mutex)
-{	
+{
+	
     int item = 0;
-    while(true){
-        wait(consumed);
+    while(true)
+    {
+        mutex_acquire(consumed);
         mutex_acquire(mutex);
         item++;
         queue[tail++] = item;     
         kprintf("added %d to queue\n", item);
-        tail = tail % QUEUESIZE;
+        tail =  tail % QUEUESIZE;
         mutex_release(mutex);
-        signal(produced);
+        mutex_release(produced);
     }
 }
 
@@ -55,14 +58,14 @@ process consumer(sid32 consumed, sid32 produced,sid32 mutex)
     int item;
     while(true)
     {
-        wait(produced);      
+        mutex_acquire(produced);      
         mutex_acquire(mutex);
         item = queue[head++];
-        consumed_count += 1;
         kprintf("%d is consumed\n", item);
-        head = head % QUEUESIZE;
+        head = head % QUEUESIZE
+	      consumed_count += 1;
         mutex_release(mutex);        
-        signal(consumed);
+        mutex_release(consumed);
     }
 }
 
@@ -101,8 +104,9 @@ process	main(void)
 	recvclr();
 
 	/* Create the shared circular buffer and semaphores here */
-	/* */      
-	  consumed = semcreate(QUEUESIZE);
+	/* */
+         
+	consumed = semcreate(1);
     produced = semcreate(0);
     mutex = semcreate(1);
     head = 0;
